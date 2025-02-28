@@ -1,3 +1,5 @@
 redis==2.10.6
-py_zipkin==0.11.0
-requests
+py_zipkin==0.20.0  # Use a newer version if available
+requests==2.31.0
+thriftpy2==0.5.2
+six==1.17.0
