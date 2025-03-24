@@ -1,4 +1,4 @@
-# Use Node.js 12 as the base image for building the app
+# Stage 1: Build the frontend
 FROM node:12 AS builder
 
 # Set the working directory
@@ -16,14 +16,20 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Use Caddy to serve the built files (lighter than Nginx and great for static sites)
-FROM caddy:alpine
+# Stage 2: Serve the frontend with Node.js and serve
+FROM node:16-alpine
 
-# Copy the built files from the previous stage
-COPY --from=builder /app/dist /usr/share/caddy
+# Set the working directory
+WORKDIR /app
 
-# Expose port 80 (HTTP)
-EXPOSE 80
+# Install serve globally and curl
+RUN npm install -g serve && apk add --no-cache curl
 
-# Expose port 443 (HTTPS, optional if Traefik handles HTTPS)
-EXPOSE 443
+# Copy the built files from the builder stage
+COPY --from=builder /app/dist /app/dist
+
+# Expose port 8080 (custom port for Traefik routing)
+EXPOSE 8080
+
+# Start the server
+CMD ["serve", "-s", "/app/dist", "-l", "8080"]

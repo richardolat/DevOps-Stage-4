@@ -1,65 +1,145 @@
 version: '3.8'
 
 services:
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/etc/traefik/traefik.yml
+      - ./acme.json:/acme.json
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.richardtodoapi.com.ng`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls=true"
+      - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+      - "traefik.http.routers.traefik.middlewares=traefik-auth"
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=admin:$$apr1$$a0qFsy5y$$Bo5sex72vPilsgvo9QqOF."
+    networks:
+      - default
+
   frontend:
     build: ./frontend
-    ports:
-      - "3000:8080"  # Access frontend at http://localhost:3000
+    container_name: devops-stage-4-frontend-1
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`richardtodoapi.com.ng`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls=true"
+      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.frontend.loadbalancer.server.port=8080"  # Desired port from .env
     env_file:
       - .env
     environment:
-      - PORT=8080
-      - AUTH_API_ADDRESS=${AUTH_API_ADDRESS}
-      - TODOS_API_ADDRESS=${TODOS_API_ADDRESS}
+      PORT: 8080  # Desired port from .env
+      AUTH_API_ADDRESS: http://auth-api:8081  # Desired port from .env
+      TODOS_API_ADDRESS: http://todos-api:8082  # Desired port from .env
+    networks:
+      - default
 
   auth-api:
     build: ./auth-api
-    ports:
-      - "3001:8081"  # Access auth-api at http://localhost:3001
+    container_name: devops-stage-4-auth-api-1
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth-api.rule=Host(`auth.richardtodoapi.com.ng`)"
+      - "traefik.http.routers.auth-api.entrypoints=websecure"
+      - "traefik.http.routers.auth-api.tls=true"
+      - "traefik.http.routers.auth-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.auth-api.loadbalancer.server.port=8081"  # Desired port from .env
     env_file:
       - .env
     environment:
-      - AUTH_API_PORT=8081
-      - JWT_SECRET=${JWT_SECRET}
-      - USERS_API_ADDRESS=${USERS_API_ADDRESS}
+      AUTH_API_PORT: 8081  # Desired port from .env
+      JWT_SECRET: ${JWT_SECRET}
+      USERS_API_ADDRESS: http://users-api:8083  # Desired port from .env
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: Admin123
+      HNG_USERNAME: hng
+      HNG_PASSWORD: HngTech
+      USER_USERNAME: user
+      USER_PASSWORD: Password
+    networks:
+      - default
 
   todos-api:
     build: ./todos-api
-    ports:
-      - "3002:8082"  # Access todos-api at http://localhost:3002
+    container_name: devops-stage-4-todos-api-1
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.todos-api.rule=Host(`todos.richardtodoapi.com.ng`)"
+      - "traefik.http.routers.todos-api.entrypoints=websecure"
+      - "traefik.http.routers.todos-api.tls=true"
+      - "traefik.http.routers.todos-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.todos-api.loadbalancer.server.port=8082"  # Desired port from .env
     env_file:
       - .env
     environment:
-      - JWT_SECRET=${JWT_SECRET}
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
-      - REDIS_CHANNEL=${REDIS_CHANNEL}
+      JWT_SECRET: ${JWT_SECRET}
+      REDIS_HOST: redis-queue
+      REDIS_PORT: 6379
+      REDIS_CHANNEL: log_channel
+    depends_on:
+      - redis
+    networks:
+      - default
 
   users-api:
     build: ./users-api
-    ports:
-      - "3003:8083"  # Access users-api at http://localhost:3003
+    container_name: devops-stage-4-users-api-1
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.users-api.rule=Host(`users.richardtodoapi.com.ng`)"
+      - "traefik.http.routers.users-api.entrypoints=websecure"
+      - "traefik.http.routers.users-api.tls=true"
+      - "traefik.http.routers.users-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.users-api.loadbalancer.server.port=8083"  # Desired port from .env
     env_file:
       - .env
     environment:
-      - SERVER_PORT=8083
-      - JWT_SECRET=${JWT_SECRET}
+      SERVER_PORT: 8083  # Desired port from .env
+      JWT_SECRET: ${JWT_SECRET}
+    networks:
+      - default
+
+  redis:
+    image: redis:7.0-alpine
+    container_name: devops-stage-4-redis-1
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - default
+    hostname: redis-queue  # Match REDIS_HOST from .env
 
   log-message-processor:
     build: ./log-message-processor
-    env_file:
-      - .env
+    container_name: devops-stage-4-log-message-processor-1
+    restart: unless-stopped
     environment:
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
-      - REDIS_CHANNEL=${REDIS_CHANNEL}
+      REDIS_HOST: redis-queue
+      REDIS_PORT: 6379
+      REDIS_CHANNEL: log_channel
+      LOG_LEVEL: info
+    depends_on:
+      - redis
+    networks:
+      - default
 
-  redis:
-    image: redis:alpine
-    ports:
-      - "6379:6379"
-    environment:
-      - ALLOW_EMPTY_PASSWORD=yes
+volumes:
+  redis_data:
+    name: devops-stage-4-redis-data
 
 networks:
   default:

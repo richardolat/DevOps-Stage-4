@@ -19,8 +19,8 @@ RUN go build -o auth-api
 # Step 2: Create the runtime image
 FROM alpine:latest
 
-# Install necessary dependencies for running the application
-RUN apk --no-cache add ca-certificates
+# Install necessary dependencies for running the application, including curl
+RUN apk --no-cache add ca-certificates curl
 
 # Set the working directory
 WORKDIR /root/
